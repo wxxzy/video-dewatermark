@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>视频去水印</title>
+<style>
+  :root{
+    --bg:#0b0d12;
+    --panel:#11141b;
+    --panel-2:#151922;
+    --elev:#1a1f2b;
+    --line:#232935;
+    --line-2:#2f3746;
+    --text:#e9ecf3;
+    --text-2:#a2aabd;
+    --text-3:#6d7688;
+    --accent:#5b8cff;
+    --accent-2:#8a6bff;
+    --ok:#35d39b;
+    --warn:#f0b445;
+    --err:#f2706b;
+    --r:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Segoe UI","Microsoft YaHei UI","PingFang SC",system-ui,-apple-system,sans-serif;
+    font-size:13.5px;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+    user-select:none;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#262d3b;border-radius:6px;border:3px solid transparent;background-clip:padding-box;}
+  ::-webkit-scrollbar-thumb:hover{background:#333c4d;background-clip:padding-box;border:3px solid transparent;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  .app{height:100%;display:flex;flex-direction:column;}
+
+  /* ---------------- header ---------------- */
+  header{
+    height:62px;flex:0 0 62px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 20px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0e1118,#0b0d12);
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .mark{
+    width:34px;height:34px;border-radius:10px;
+    display:grid;place-items:center;
+    background:linear-gradient(135deg,#5b8cff,#8a6bff);
+    box-shadow:0 6px 18px -6px rgba(91,140,255,.75);
+  }
+  .mark svg{width:19px;height:19px;}
+  .brand h1{font-size:15px;font-weight:600;letter-spacing:.3px;}
+  .brand p{font-size:11.5px;color:var(--text-3);margin-top:2px;letter-spacing:.2px;}
+  .env{display:flex;gap:8px;align-items:center;}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    height:26px;padding:0 10px;border-radius:8px;
+    background:var(--panel-2);border:1px solid var(--line);
+    font-size:11.5px;color:var(--text-2);
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px currentColor;color:var(--ok);}
+  .dot.warn{background:var(--warn);color:var(--warn);}
+  .dot.err{background:var(--err);color:var(--err);}
+
+  /* ---------------- layout ---------------- */
+  main{
+    flex:1;min-height:0;display:grid;
+    grid-template-columns:minmax(0,1fr) 356px;
+    gap:14px;padding:14px 16px 0;
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--r);
+    display:flex;flex-direction:column;min-height:0;
+    overflow:hidden;
+  }
+
+  /* ---------------- list ---------------- */
+  .panel-hd{
+    height:52px;flex:0 0 52px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 14px;border-bottom:1px solid var(--line);
+    gap:10px;
+  }
+  .ttl{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;}
+  .count{
+    font-size:11px;color:var(--text-3);font-weight:400;
+    background:var(--panel-2);border:1px solid var(--line);
+    padding:2px 8px;border-radius:20px;
+  }
+  .hdr-actions{display:flex;gap:8px;}
+
+  .btn{
+    height:32px;padding:0 13px;border-radius:9px;
+    border:1px solid var(--line-2);background:var(--elev);
+    color:var(--text);font-size:12.5px;font-family:inherit;
+    display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    transition:.16s ease;white-space:nowrap;
+  }
+  .btn:hover{background:#212737;border-color:#3a4456;}
+  .btn:active{transform:translateY(1px);}
+  .btn:disabled{opacity:.42;cursor:not-allowed;transform:none;}
+  .btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:8px;}
+  .btn.ghost{background:transparent;border-color:var(--line);color:var(--text-2);}
+  .btn.ghost:hover{background:var(--elev);color:var(--text);}
+  .btn.ghost.on{background:var(--elev);color:var(--text);border-color:var(--line-2);}
+  .btn.primary{
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    border:none;color:#fff;font-weight:600;
+    box-shadow:0 8px 20px -10px rgba(91,140,255,.9);
+  }
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn svg{width:14px;height:14px;opacity:.9;}
+
+  .listbody{flex:1;min-height:0;overflow-y:auto;padding:12px;position:relative;}
+
+  .empty{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;color:var(--text-3);
+    pointer-events:none;
+  }
+  .empty .ring{
+    width:64px;height:64px;border-radius:20px;display:grid;place-items:center;
+    background:radial-gradient(circle at 50% 40%,#1b2434,#12161f 70%);
+    border:1px dashed #2b3342;
+  }
+  .empty .ring svg{width:26px;height:26px;color:#44506a;}
+  .empty h3{font-size:13.5px;color:var(--text-2);font-weight:500;}
+  .empty p{font-size:12px;line-height:1.7;text-align:center;}
+
+  .fcard{
+    display:flex;gap:11px;align-items:flex-start;
+    padding:10px;border-radius:11px;
+    border:1px solid transparent;background:var(--panel-2);
+    margin-bottom:8px;position:relative;
+    animation:in .18s ease both;
+  }
+  @keyframes in{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+  .fcard:hover{border-color:var(--line-2);background:#171c26;}
+  .fcard.running{border-color:rgba(91,140,255,.5);background:#161c2a;}
+  .fcard.done{border-color:rgba(53,211,155,.28);}
+  .fcard.failed{border-color:rgba(242,112,107,.35);}
+
+  .thumb{
+    width:96px;height:60px;flex:0 0 96px;border-radius:8px;overflow:hidden;
+    background:#0d1017 center/cover no-repeat;
+    border:1px solid var(--line);position:relative;cursor:zoom-in;
+  }
+  .thumb.none{display:grid;place-items:center;cursor:default;}
+  .thumb.none svg{width:20px;height:20px;color:#3b465c;}
+  .thumb .zoom{
+    position:absolute;inset:0;background:rgba(6,8,12,.55);opacity:0;
+    display:grid;place-items:center;transition:.15s;color:#dfe6f5;font-size:10.5px;
+  }
+  .thumb:hover .zoom{opacity:1;}
+
+  .fmain{flex:1;min-width:0;padding-top:1px;}
+  .fname{
+    font-size:12.8px;font-weight:500;color:var(--text);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .fmeta{font-size:11.5px;color:var(--text-3);margin-top:4px;letter-spacing:.2px;}
+  .fbox{
+    display:inline-flex;align-items:center;gap:5px;margin-top:6px;
+    font-size:11px;color:var(--text-2);
+    background:#0f131b;border:1px solid var(--line);
+    padding:2px 8px;border-radius:6px;font-variant-numeric:tabular-nums;
+  }
+  .fbox.idle{color:var(--text-3);}
+  .fbox .k{color:var(--text-3);}
+
+  .fside{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+  .pill{
+    font-size:11px;padding:3px 9px;border-radius:20px;white-space:nowrap;
+    border:1px solid transparent;
+  }
+  .pill.pending{background:#1a1f2a;color:var(--text-3);border-color:var(--line);}
+  .pill.detecting{background:rgba(240,180,69,.12);color:var(--warn);border-color:rgba(240,180,69,.28);}
+  .pill.ready{background:rgba(91,140,255,.12);color:#8fb0ff;border-color:rgba(91,140,255,.3);}
+  .pill.running{background:rgba(91,140,255,.16);color:#a8c0ff;border-color:rgba(91,140,255,.42);}
+  .pill.done{background:rgba(53,211,155,.12);color:var(--ok);border-color:rgba(53,211,155,.3);}
+  .pill.warn{background:rgba(240,180,69,.14);color:var(--warn);border-color:rgba(240,180,69,.34);}
+  .fbox .lowconf{font-style:normal;color:var(--warn);border-left:1px solid var(--line-2);margin-left:6px;padding-left:6px;}
+  .pill.failed{background:rgba(242,112,107,.12);color:var(--err);border-color:rgba(242,112,107,.3);}
+  .pill.skipped{background:#1a1f2a;color:var(--text-3);border-color:var(--line);}
+
+  .factions{display:flex;gap:2px;opacity:0;transition:.15s;}
+  .fcard:hover .factions{opacity:1;}
+  .icon-btn{
+    width:24px;height:24px;border-radius:6px;border:none;background:transparent;
+    color:var(--text-3);cursor:pointer;display:grid;place-items:center;
+  }
+  .icon-btn:hover{background:#232a38;color:var(--text);}
+  .icon-btn svg{width:13px;height:13px;}
+
+  .list-ft{
+    flex:0 0 auto;border-top:1px solid var(--line);
+    padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:#0f1219;
+  }
+  .hint{font-size:11.5px;color:var(--text-3);}
+
+  /* ---------------- side ---------------- */
+  .side{padding:0;overflow-y:auto;}
+  .side-hd{
+    padding:14px 16px 10px;font-size:12px;font-weight:600;color:var(--text-2);
+    letter-spacing:.6px;text-transform:uppercase;
+  }
+  .sec{padding:0 16px 16px;border-bottom:1px solid var(--line);}
+  .sec:last-of-type{border-bottom:none;}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
+  .row:last-child{margin-bottom:0;}
+  .label{font-size:12.5px;color:var(--text-2);}
+  .label .sub{display:block;font-size:11px;color:var(--text-3);margin-top:3px;}
+
+  .seg{display:flex;background:#0e121a;border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;}
+  .seg button{
+    flex:1;height:28px;border:none;border-radius:7px;background:transparent;
+    color:var(--text-3);font-size:12px;font-family:inherit;cursor:pointer;transition:.15s;
+  }
+  .seg button.on{background:var(--elev);color:var(--text);box-shadow:0 1px 6px rgba(0,0,0,.4);}
+
+  select,input[type=text],input[type=number]{
+    background:#0e121a;border:1px solid var(--line);color:var(--text);
+    border-radius:9px;height:32px;padding:0 10px;font-size:12.5px;font-family:inherit;
+    outline:none;transition:.15s;
+  }
+  select:focus,input:focus{border-color:#3c4a66;}
+  select{appearance:none;padding-right:26px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' fill='none' stroke='%236d7688' stroke-width='1.6' stroke-linecap='round'/></svg>");
+    background-repeat:no-repeat;background-position:right 9px center;}
+
+  .stepper{display:flex;align-items:center;background:#0e121a;border:1px solid var(--line);border-radius:9px;height:32px;overflow:hidden;}
+  .stepper button{width:28px;height:100%;border:none;background:transparent;color:var(--text-2);cursor:pointer;font-size:14px;line-height:1;}
+  .stepper button:hover{background:#1b2130;color:#fff;}
+  .stepper input{width:44px;height:100%;border:none;background:transparent;text-align:center;font-size:12.5px;font-variant-numeric:tabular-nums;}
+  .stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;}
+
+  .slider{display:flex;align-items:center;gap:10px;}
+  input[type=range]{
+    -webkit-appearance:none;width:100%;height:4px;border-radius:3px;outline:none;
+    background:linear-gradient(90deg,var(--accent) 0%,var(--accent) var(--p,50%),#202633 var(--p,50%),#202633 100%);
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:13px;height:13px;border-radius:50%;
+    background:#fff;border:2px solid var(--accent);cursor:pointer;
+    box-shadow:0 2px 6px rgba(0,0,0,.5);
+  }
+  .val{
+    min-width:34px;text-align:center;font-size:12px;color:var(--text);
+    background:#0e121a;border:1px solid var(--line);border-radius:7px;padding:4px 0;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .radio-group{display:flex;flex-direction:column;gap:8px;}
+  .radio{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2);cursor:pointer;}
+  .radio input{appearance:none;width:14px;height:14px;border-radius:50%;border:1.5px solid #39415280;background:#0e121a;cursor:pointer;position:relative;}
+  .radio input:checked{border-color:var(--accent);}
+  .radio input:checked::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--accent);}
+  .pathbox{
+    display:flex;gap:6px;margin-top:8px;
+  }
+  .pathbox input{flex:1;min-width:0;font-size:11.5px;color:var(--text-2);}
+
+  .switch{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;}
+  .switch span{font-size:12.5px;color:var(--text-2);}
+  .switch input{appearance:none;width:34px;height:19px;border-radius:20px;background:#232a38;position:relative;cursor:pointer;transition:.2s;flex:0 0 34px;}
+  .switch input::after{
+    content:"";position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;
+    background:#8b94a8;transition:.2s;
+  }
+  .switch input:checked{background:rgba(91,140,255,.35);}
+  .switch input:checked::after{transform:translateX(15px);background:var(--accent);}
+
+  .side-ft{
+    position:sticky;bottom:0;padding:12px 16px 16px;margin-top:auto;
+    background:linear-gradient(180deg,rgba(17,20,27,0),var(--panel) 26%);
+    border-top:1px solid var(--line);
+  }
+  .side-ft .btn.primary{width:100%;height:40px;font-size:13.5px;justify-content:center;}
+
+  /* ---------------- footer ---------------- */
+  footer{
+    flex:0 0 58px;height:58px;position:relative;
+    border-top:1px solid var(--line);
+    background:#0e1118;padding:0 16px;
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;
+  }
+  .prog-wrap{min-width:0;}
+  .prog-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;gap:12px;}
+  #statusText{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #progPct{font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums;}
+  .track{height:5px;border-radius:4px;background:#1a202b;overflow:hidden;}
+  .fill{
+    height:100%;width:0%;border-radius:4px;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    transition:width .3s ease;
+    box-shadow:0 0 12px rgba(91,140,255,.6);
+  }
+  .ftr-actions{display:flex;gap:8px;}
+
+  .logbox{
+    position:absolute;left:16px;right:16px;bottom:calc(100% + 8px);
+    max-height:150px;overflow-y:auto;
+    padding:9px 11px;
+    background:#0a0d13;border:1px solid var(--line);border-radius:11px;
+    box-shadow:0 -18px 40px -18px rgba(0,0,0,.9);
+    font-family:"Cascadia Mono",Consolas,"Courier New",monospace;
+    font-size:11.5px;line-height:1.75;
+    user-select:text;z-index:20;
+  }
+  .logbox div{color:var(--text-2);white-space:pre-wrap;word-break:break-all;}
+  .logbox .t{color:#4d576b;margin-right:8px;}
+  .logbox .ok{color:#8fe3c2;}
+  .logbox .warn{color:#e8c072;}
+  .logbox .error{color:#f0918d;}
+
+  /* toast */
+  #toasts{position:fixed;right:18px;bottom:74px;display:flex;flex-direction:column;gap:8px;z-index:50;}
+  .toast{
+    background:#1a2030;border:1px solid var(--line-2);border-left:3px solid var(--accent);
+    padding:9px 14px;border-radius:9px;font-size:12.5px;color:var(--text);
+    box-shadow:0 12px 30px -12px rgba(0,0,0,.8);animation:tin .2s ease both;max-width:380px;
+  }
+  .toast.err{border-left-color:var(--err);}
+  .toast.ok{border-left-color:var(--ok);}
+  @keyframes tin{from{opacity:0;transform:translateX(12px);}to{opacity:1;transform:none;}}
+
+  /* lightbox */
+  #lightbox{
+    position:fixed;inset:0;background:rgba(5,7,11,.84);backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;z-index:80;
+  }
+  #lightbox.on{display:flex;}
+  .lb-inner{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:88vw;}
+  .lb-inner img{
+    max-width:86vw;max-height:70vh;border-radius:12px;border:1px solid var(--line-2);
+    box-shadow:0 30px 80px -20px #000;background:#0d1017;
+  }
+  .lb-bar{
+    display:flex;align-items:center;gap:12px;
+    background:rgba(22,26,35,.96);border:1px solid var(--line-2);
+    border-radius:12px;padding:8px 12px;
+  }
+  .lb-bar .t{font-size:12px;color:var(--text-3);}
+  .lb-bar label{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-3);}
+  .lb-bar input{
+    width:62px;height:28px;background:#0e121a;border:1px solid var(--line);
+    border-radius:7px;color:var(--text);font-size:12px;text-align:center;
+    font-variant-numeric:tabular-nums;outline:none;
+  }
+  .lb-bar input:focus{border-color:var(--accent);}
+
+  .spin{animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h9"/><path d="M4 12h6"/><path d="M4 17h7"/>
+          <path d="M15.5 15.5l5-5"/><path d="M20.5 15.5l-5-5"/>
+        </svg>
+      </div>
+      <div>
+        <h1>视频去水印</h1>
+        <p>自动定位角落水印 · 批量处理 · 本地运行</p>
+      </div>
+    </div>
+    <div class="env" id="env"></div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-hd">
+        <div class="ttl">视频列表 <span class="count" id="fileCount">0 个</span></div>
+        <div class="hdr-actions">
+          <button class="btn ghost" id="btnAddFiles">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            添加视频
+          </button>
+          <button class="btn ghost" id="btnAddFolder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            文件夹
+          </button>
+          <button class="btn ghost" id="btnClear" title="清空列表">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="listbody" id="listbody">
+        <div class="empty" id="empty">
+          <div class="ring">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5l5 2.5-5 2.5z"/>
+            </svg>
+          </div>
+          <h3>点右上角「添加视频」或「文件夹」导入</h3>
+          <p>支持 mp4 / mov / mkv / avi / flv / webm 等常见格式<br/>也可以在资源管理器里复制文件，回到窗口按 Ctrl+V 导入</p>
+        </div>
+        <div id="filelist"></div>
+      </div>
+
+      <div class="list-ft">
+        <button class="btn" id="btnDetectAll">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+          自动定位全部
+        </button>
+        <span class="hint" id="listHint">先定位确认绿框位置，再开始处理</span>
+      </div>
+    </section>
+
+    <aside class="panel side">
+      <div class="side-hd">处理设置</div>
+
+      <div class="sec">
+        <div class="row" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <div class="label">修复引擎</div>
+          <div class="seg" id="segMode">
+            <button data-v="delogo" class="on">插值修复</button>
+            <button data-v="inpaint">掩膜修复</button>
+          </div>
+        </div>
+        <div class="row" id="rowAlgo" style="display:none;">
+          <div class="label">掩膜算法</div>
+          <select id="selAlgo" style="width:132px;">
+            <option value="telea">TELEA</option>
+            <option value="ns">NS</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="label">水印位置</div>
+          <select id="selCorner" style="width:132px;">
+            <option value="br">右下角</option>
+            <option value="bl">左下角</option>
+            <option value="tr">右上角</option>
+            <option value="tl">左上角</option>
+            <option value="bottom">底部通栏</option>
+            <option value="top">顶部通栏</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="label">外扩像素<span class="sub">定位框向外留的余量</span></div>
+          <div class="stepper">
+            <button data-step="-1" data-for="numPad">−</button>
+            <input type="number" id="numPad" value="2" min="0" max="40" />
+            <button data-step="1" data-for="numPad">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="row" style="flex-direction:column;align-items:stretch;gap:10px;">
+          <div class="label">画质（CRF）<span class="sub">越小越清晰，文件也越大</span></div>
+          <div class="slider">
+            <input type="range" id="rngCrf" min="14" max="28" value="18" />
+            <div class="val" id="valCrf">18</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="row" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <div class="label">输出位置</div>
+          <div class="radio-group">
+            <label class="radio"><input type="radio" name="outmode" value="same" checked /> 与源文件同目录</label>
+            <label class="radio"><input type="radio" name="outmode" value="custom" /> 指定目录</label>
+          </div>
+          <div class="pathbox" id="pathRow" style="display:none;">
+            <input type="text" id="inputOutdir" placeholder="选择一个输出文件夹" readonly />
+            <button class="btn sm" id="btnPickOut">选择</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="row"><label class="switch"><span>保留音轨</span><input type="checkbox" id="chkAudio" checked /></label></div>
+        <div class="row"><label class="switch"><span>覆盖同名输出</span><input type="checkbox" id="chkOverwrite" checked /></label></div>
+      </div>
+
+      <div class="side-ft">
+        <button class="btn primary" id="btnStart">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l14 8-14 8z"/></svg>
+          开始处理
+        </button>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <div class="prog-wrap">
+      <div class="prog-top">
+        <span id="statusText">就绪 · 添加视频后点击开始</span>
+        <span id="progPct">0%</span>
+      </div>
+      <div class="track"><div class="fill" id="progFill"></div></div>
+    </div>
+    <div class="ftr-actions">
+      <button class="btn ghost" id="btnLog">日志</button>
+      <button class="btn" id="btnOpenOut" style="display:none;">打开输出目录</button>
+    </div>
+    <div class="logbox" id="logbox" style="display:none;"></div>
+  </footer>
+</div>
+
+<div id="toasts"></div>
+<div id="lightbox">
+  <div class="lb-inner">
+    <img id="lbImg" alt="" />
+    <div class="lb-bar">
+      <span class="t">水印框位置</span>
+      <label>x<input type="number" id="lbx" /></label>
+      <label>y<input type="number" id="lby" /></label>
+      <label>宽<input type="number" id="lbw" /></label>
+      <label>高<input type="number" id="lbh" /></label>
+      <button class="btn sm primary" id="lbApply">应用</button>
+      <button class="btn sm ghost" id="lbRedetect">重新定位</button>
+      <button class="btn sm ghost" id="lbClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = (s) => document.querySelector(s);
+  const files = new Map();       // path -> entry
+  let API = null;                // pywebview api 或 mock
+  let logIndex = 0;
+  let timer = null;
+  let busy = false;
+  let MOCKED = false;
+  let bound = false;
+  let adopted = false;
+  let runSeq = 0;        // 每次开始处理 +1
+  let toastSeq = -1;     // 已提示过"完成"的轮次，避免心跳轮询反复弹提示
+  let lastPercent = 0;
+  let lastOutputDir = "";
+
+  const STATUS_TEXT = {
+    pending: "待处理", detecting: "定位中", ready: "已定位",
+    running: "处理中", done: "已完成", failed: "失败", skipped: "已跳过",
+  };
+
+  /* ------------------------------------------------ 工具 */
+  function toast(msg, kind = "") {
+    const el = document.createElement("div");
+    el.className = "toast " + kind;
+    el.textContent = msg;
+    $("#toasts").appendChild(el);
+    setTimeout(() => {
+      el.style.transition = ".25s";
+      el.style.opacity = "0";
+      el.style.transform = "translateX(12px)";
+      setTimeout(() => el.remove(), 260);
+    }, 3200);
+  }
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  /* ------------------------------------------------ 渲染 */
+  function updateCount() {
+    $("#fileCount").textContent = files.size + " 个";
+    $("#empty").style.display = files.size ? "none" : "flex";
+    $("#btnStart").disabled = busy || files.size === 0;
+    $("#btnDetectAll").disabled = busy || files.size === 0;
+    $("#btnClear").disabled = busy || files.size === 0;
+  }
+
+  function cardHtml(f) {
+    return `
+      <div class="thumb none" data-role="thumb">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5l5 2.5-5 2.5z"/></svg>
+      </div>
+      <div class="fmain">
+        <div class="fname">${esc(f.name)}</div>
+        <div class="fmeta">${esc(f.meta || f.size_text || "")}</div>
+        <div class="fbox idle" data-role="box"><span class="k">未定位</span></div>
+      </div>
+      <div class="fside">
+        <span class="pill pending" data-role="pill">待处理</span>
+        <div class="factions">
+          <button class="icon-btn" data-act="detect" title="定位水印">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+          </button>
+          <button class="icon-btn" data-act="open" title="打开所在文件夹">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          </button>
+          <button class="icon-btn" data-act="del" title="从列表移除">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+      </div>`;
+  }
+
+  function upsertCard(f) {
+    let card = document.querySelector(`.fcard[data-path="${cssEscape(f.path)}"]`);
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "fcard";
+      card.dataset.path = f.path;
+      card.innerHTML = cardHtml(f);
+      $("#filelist").appendChild(card);
+    }
+    card.classList.toggle("running", f.status === "running");
+    card.classList.toggle("done", f.status === "done");
+    card.classList.toggle("failed", f.status === "failed");
+
+    const pill = card.querySelector('[data-role="pill"]');
+    const lowConf = f.conf > 0 && f.conf < 0.5 && (f.status === "ready" || f.status === "running");
+    pill.className = "pill " + (lowConf ? "warn" : f.status);
+    pill.textContent = lowConf ? "待确认" : (STATUS_TEXT[f.status] || f.status);
+    pill.title = lowConf ? `自动定位置信度仅 ${Math.round(f.conf * 100)}%，请点缩略图核对` : "";
+
+    const box = card.querySelector('[data-role="box"]');
+    if (f.box_text) {
+      box.className = "fbox";
+      const confTag = (f.conf > 0 && f.conf < 0.5)
+        ? `<em class="lowconf">置信度 ${Math.round(f.conf * 100)}%</em>` : "";
+      box.innerHTML = `<span class="k">水印框</span> ${esc(f.box_text)}${confTag}`;
+    } else if (f.status === "failed" && f.error) {
+      box.className = "fbox";
+      box.innerHTML = `<span class="k">错误</span> ${esc(f.error).slice(0, 60)}`;
+    } else {
+      box.className = "fbox idle";
+      box.innerHTML = `<span class="k">未定位</span>`;
+    }
+
+    const th = card.querySelector('[data-role="thumb"]');
+    if (f.thumb && th.dataset.src !== f.thumb) {
+      th.dataset.src = f.thumb;
+      th.className = "thumb";
+      th.style.backgroundImage = `url("${f.thumb}")`;
+      th.innerHTML = `<div class="zoom">查看定位</div>`;
+    }
+
+    card.querySelector('[data-act="detect"]').style.display = f.status === "done" ? "none" : "grid";
+    return card;
+  }
+
+  function cssEscape(s) {
+    return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/["\\]/g, "\\$&");
+  }
+
+  function renderList(list) {
+    const seen = new Set();
+    list.forEach((f) => {
+      files.set(f.path, f);
+      seen.add(f.path);
+      upsertCard(f);
+    });
+    for (const p of [...files.keys()]) {
+      if (!seen.has(p)) {
+        const c = document.querySelector(`.fcard[data-path="${cssEscape(p)}"]`);
+        if (c) c.remove();
+        files.delete(p);
+      }
+    }
+    updateCount();
+  }
+
+  function setProgress(pct, text) {
+    lastPercent = Math.max(0, Math.min(100, pct || 0));
+    $("#progFill").style.width = lastPercent + "%";
+    $("#progPct").textContent = Math.round(lastPercent) + "%";
+    if (text != null) $("#statusText").textContent = text;
+  }
+
+  function appendLogs(items) {
+    if (!items.length) return;
+    const box = $("#logbox");
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    items.forEach((l) => {
+      const d = document.createElement("div");
+      d.className = l.level || "info";
+      d.innerHTML = `<span class="t">${esc(l.t)}</span>${esc(l.text)}`;
+      box.appendChild(d);
+    });
+    while (box.childElementCount > 400) box.firstChild.remove();
+    if (nearBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  /* ------------------------------------------------ 环境信息 */
+  async function boot() {
+    const info = await API.boot();
+    const env = $("#env");
+    const chips = [];
+    if (info.error) {
+      chips.push(`<span class="chip"><i class="dot err"></i>引擎未就绪</span>`);
+      toast("初始化失败：" + info.error, "err");
+    } else {
+      chips.push(`<span class="chip"><i class="dot"></i>ffmpeg 就绪</span>`);
+      chips.push(`<span class="chip"><i class="dot ${info.has_cv ? "" : "warn"}"></i>自动定位 ${info.has_cv ? "可用" : "不可用"}</span>`);
+    }
+    env.innerHTML = chips.join("");
+  }
+
+  /* ------------------------------------------------ 操作 */
+  async function addFrom(apiCall) {
+    if (busy) return;
+    const added = await apiCall();
+    if (!added || !added.length) return;
+    const dumped = await API.poll(0);
+    renderList(dumped.files);
+    logIndex = dumped.log_total;
+    toast(`已添加 ${added.length} 个视频`, "ok");
+  }
+
+  async function detectAll() {
+    if (busy || !files.size) return;
+    const paths = [...files.keys()];
+    busy = true; updateCount();
+    const corner = $("#selCorner").value;
+    const pad = parseInt($("#numPad").value, 10) || 0;
+    let n = 0;
+    for (const p of paths) {
+      n++;
+      const f = files.get(p);
+      if (!f) continue;
+      const card = document.querySelector(`.fcard[data-path="${cssEscape(p)}"]`);
+      const pill = card && card.querySelector('[data-role="pill"]');
+      if (pill) { pill.className = "pill detecting"; pill.textContent = "定位中"; }
+      setProgress((n - 1) / paths.length * 100, `正在定位 ${n}/${paths.length} · ${f.name}`);
+      const r = await API.detect(p, corner, pad);
+      if (r.entry) { files.set(p, r.entry); upsertCard(r.entry); }
+      if (r.ok) { files.get(p).status = "ready"; upsertCard(files.get(p)); }
+    }
+    setProgress(0, "定位完成，可以开始处理");
+    busy = false; updateCount();
+    toast("定位完成", "ok");
+  }
+
+  function collectOptions() {
+    const mode = $("#segMode button.on").dataset.v;
+    const outmode = document.querySelector('input[name="outmode"]:checked').value;
+    return {
+      mode,
+      inpaint_algo: $("#selAlgo").value,
+      corner: $("#selCorner").value,
+      pad: parseInt($("#numPad").value, 10) || 0,
+      crf: parseInt($("#rngCrf").value, 10),
+      preset: "medium",
+      keep_audio: $("#chkAudio").checked,
+      overwrite: $("#chkOverwrite").checked,
+      outdir: outmode === "custom" ? $("#inputOutdir").value.trim() : "",
+    };
+  }
+
+  async function start() {
+    if (busy || !files.size) return;
+    if (!$("#chkOverwrite").checked && [...files.values()].every((f) => f.status === "done")) {
+      toast("全部文件已处理完成", "ok");
+      return;
+    }
+    busy = true; updateCount();
+    setProgress(0, "正在启动…");
+    const r = await API.start(collectOptions());
+    if (r.ok) runSeq += 1;
+    if (!r.ok) {
+      toast(r.note || "无法开始", "err");
+      busy = false; updateCount();
+      return;
+    }
+    startPolling();
+  }
+
+  function startPolling() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(poll, 320);
+  }
+
+  async function poll() {
+    const r = await API.poll(logIndex);
+    logIndex = r.log_total;
+    renderList(r.files);
+    appendLogs(r.logs || []);
+    const st = r.state || {};
+    if (st.output_dir) lastOutputDir = st.output_dir;
+    const pct = st.percent || 0;
+    let text = "";
+    if (st.running) {
+      text = st.current ? `${st.message || "处理中"} · ${st.current}` : (st.message || "处理中…");
+      if (st.eta > 0) text += ` · 预计剩余 ${fmtSec(st.eta)}`;
+    } else if (st.finished) {
+      text = st.message || "处理完成";
+      text += st.elapsed ? ` · 用时 ${fmtSec(st.elapsed)}` : "";
+    } else {
+      text = "就绪 · 添加视频后点击开始";
+    }
+    setProgress(st.running ? pct : (st.finished ? 100 : pct), text);
+
+    if (!st.running && st.finished) {
+      clearInterval(timer); timer = null;
+      busy = false; updateCount();
+      if (!r.state.output_dir) {
+        const done = (r.files || []).find((f) => f.status === "done" && f.out);
+        if (done) lastOutputDir = dirname(done.out);
+      }
+      $("#btnOpenOut").style.display = lastOutputDir ? "inline-flex" : "none";
+      if (toastSeq !== runSeq) {
+        toastSeq = runSeq;
+        toast(st.message || "处理完成", "ok");
+      }
+    }
+  }
+
+  let lbPath = null;
+  function fillLbBox(f) {
+    const b = (f && f.box) || [0, 0, 0, 0];
+    ["#lbx", "#lby", "#lbw", "#lbh"].forEach((id, i) => { $(id).value = b[i] ?? 0; });
+  }
+  function openLightbox(p) {
+    const f = files.get(p);
+    if (!f || !f.thumb) return;
+    lbPath = p;
+    $("#lbImg").src = f.thumb;
+    fillLbBox(f);
+    $("#lightbox").classList.add("on");
+  }
+  function closeLightbox() {
+    $("#lightbox").classList.remove("on");
+    lbPath = null;
+  }
+
+  // 供 Python 端回调（例如剪贴板导入）
+  window.__dewDrop = async (paths) => {
+    try {
+      if (!paths || !paths.length) return;
+      const added = await API.add_paths(paths);
+      const r = await API.poll(0);
+      renderList(r.files);
+      logIndex = r.log_total;
+      if (added && added.length) toast(`已添加 ${added.length} 个视频`, "ok");
+      else toast("这些文件里没有可处理的视频", "warn");
+    } catch (e) {
+      toast("添加失败：" + e, "err");
+    }
+  };
+
+  const dirname = (p) => p.replace(/[\\/][^\\/]*$/, "");
+  function fmtSec(s) {
+    s = Math.max(0, Math.round(s));
+    return s < 60 ? `${s} 秒` : `${Math.floor(s / 60)} 分 ${String(s % 60).padStart(2, "0")} 秒`;
+  }
+
+  /* ------------------------------------------------ 事件绑定 */
+  function bind() {
+    $("#btnAddFiles").onclick = () => addFrom(() => API.pick_files());
+    $("#btnAddFolder").onclick = () => addFrom(() => API.pick_folder());
+    $("#btnClear").onclick = async () => {
+      if (busy) return;
+      if (!(await API.clear_files())) return;
+      files.clear();
+      $("#filelist").innerHTML = "";
+      updateCount();
+      setProgress(0, "就绪 · 添加视频后点击开始");
+    };
+    $("#btnDetectAll").onclick = detectAll;
+    $("#btnStart").onclick = start;
+    $("#btnLog").onclick = () => {
+      const box = $("#logbox");
+      const open = box.style.display === "none";
+      box.style.display = open ? "block" : "none";
+      $("#btnLog").classList.toggle("on", open);
+      if (open) box.scrollTop = box.scrollHeight;
+    };
+    $("#btnOpenOut").onclick = () => API.open_path(lastOutputDir || "");
+    $("#btnPickOut").onclick = async () => {
+      const d = await API.pick_outdir();
+      if (d) $("#inputOutdir").value = d;
+    };
+
+    document.querySelectorAll("#segMode button").forEach((b) => {
+      b.onclick = () => {
+        document.querySelectorAll("#segMode button").forEach((x) => x.classList.remove("on"));
+        b.classList.add("on");
+        $("#rowAlgo").style.display = b.dataset.v === "inpaint" ? "flex" : "none";
+      };
+    });
+
+    document.querySelectorAll(".stepper button").forEach((b) => {
+      b.onclick = () => {
+        const inp = document.getElementById(b.dataset.for);
+        const v = (parseInt(inp.value, 10) || 0) + parseInt(b.dataset.step, 10);
+        inp.value = Math.max(parseInt(inp.min, 10) || 0, Math.min(parseInt(inp.max, 10) || 99, v));
+      };
+    });
+
+    const rng = $("#rngCrf");
+    const syncRng = () => {
+      $("#valCrf").textContent = rng.value;
+      const p = (rng.value - rng.min) / (rng.max - rng.min) * 100;
+      rng.style.setProperty("--p", p + "%");
+    };
+    rng.oninput = syncRng;
+    syncRng();
+
+    document.querySelectorAll('input[name="outmode"]').forEach((r) => {
+      r.onchange = () => {
+        $("#pathRow").style.display = r.value === "custom" && r.checked ? "flex" : "none";
+      };
+    });
+
+    // 列表内的交互（事件委托）
+    $("#filelist").addEventListener("click", async (e) => {
+      const card = e.target.closest(".fcard");
+      if (!card) return;
+      const p = card.dataset.path;
+      const act = e.target.closest("[data-act]");
+      if (act) {
+        e.stopPropagation();
+        const a = act.dataset.act;
+        if (a === "del") {
+          await API.remove_file(p);
+          files.delete(p);
+          card.remove();
+          updateCount();
+        } else if (a === "open") {
+          await API.reveal(p);
+        } else if (a === "detect") {
+          act.innerHTML = `<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3a9 9 0 1 0 9 9" stroke-linecap="round"/></svg>`;
+          const r = await API.detect(p, $("#selCorner").value, parseInt($("#numPad").value, 10) || 0);
+          if (r.entry) { files.set(p, r.entry); upsertCard(r.entry); }
+          if (!r.ok) toast("定位失败：" + (r.note || "未知原因"), "err");
+        }
+        return;
+      }
+      const f = files.get(p);
+      if (f && f.thumb) openLightbox(p);
+    });
+
+    $("#lightbox").onclick = (e) => {
+      if (e.target.id === "lightbox") closeLightbox();
+    };
+
+    // 阻止把文件误拖到窗口里时页面被导航走（不支持文件拖放导入）
+    ["dragenter", "dragover", "drop"].forEach((ev) =>
+      document.body.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); }));
+
+    // Ctrl+V：从剪贴板导入（资源管理器里复制文件后粘进来）
+    document.addEventListener("paste", async (e) => {
+      try {
+        const paths = await API.clipboard_files();
+        if (paths && paths.length) {
+          e.preventDefault();
+          await window.__dewDrop(paths);
+        }
+      } catch (err) { /* 忽略 */ }
+    });
+
+    document.addEventListener("keydown", async (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        try {
+          const paths = await API.clipboard_files();
+          if (paths && paths.length) { e.preventDefault(); await window.__dewDrop(paths); }
+        } catch (err) { /* 忽略 */ }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        $("#btnAddFiles").click();
+      }
+      if (e.key === "Escape") closeLightbox();
+    });
+  }
+
+  /* ------------------------------------------------ mock（浏览器里直接打开时） */
+  function mockApi() {
+    const demo = [
+      { name: "2026-11-09 即梦AI 短片.mp4", meta: "720×1280 · 0:10 · 1.9 MB", size: 1993315 },
+      { name: "采访片段_01.mp4", meta: "1920×1080 · 2:41 · 48.2 MB", size: 50500000 },
+      { name: "产品展示_master.mov", meta: "3840×2160 · 0:38 · 210 MB", size: 220000000 },
+    ];
+    let list = demo.map((d, i) => ({
+      path: "C:/demo/" + d.name, name: d.name, meta: d.meta, size_text: "1.9 MB",
+      status: i === 0 ? "done" : (i === 1 ? "running" : "pending"),
+      box: i < 2 ? [576, 1226, 129, 41] : null,
+      box_text: i < 2 ? "576, 1226, 129×41" : "",
+      thumb: i < 2 ? mockThumb() : "", w: 720, h: 1280, out: "", error: "", note: "",
+    }));
+    let pct = 34;
+    return {
+      boot: async () => ({ ffmpeg: "mock", has_cv: true, error: "", version: "demo" }),
+      pick_files: async () => [], pick_folder: async () => [], add_paths: async () => [],
+      remove_file: async (p) => { list = list.filter((f) => f.path !== p); return true; },
+      clear_files: async () => { list = []; return true; },
+      detect: async (p) => ({ ok: false, note: "mock 模式不支持定位" }),
+      start: async () => ({ ok: false, note: "mock 模式：请用 python app.py 启动" }),
+      pick_outdir: async () => "", open_path: async () => true, reveal: async () => true,
+      poll: async () => {
+        pct = Math.min(99, pct + 1);
+        return { files: list, logs: [], log_total: 6, state: { running: true, percent: pct, current: "采访片段_01.mp4", message: "处理中 46%", eta: 42, total: 3, done: 1, finished: false, output_dir: "" } };
+      },
+    };
+  }
+
+  function mockThumb() {
+    const c = document.createElement("canvas");
+    c.width = 320; c.height = 200;
+    const g = c.getContext("2d");
+    const grd = g.createLinearGradient(0, 0, 320, 200);
+    grd.addColorStop(0, "#243044"); grd.addColorStop(1, "#0f1622");
+    g.fillStyle = grd; g.fillRect(0, 0, 320, 200);
+    g.strokeStyle = "#3cd278"; g.lineWidth = 2;
+    g.strokeRect(196, 138, 74, 26);
+    g.fillStyle = "rgba(255,255,255,.5)";
+    g.font = "12px sans-serif";
+    g.fillText("demo", 20, 186);
+    return c.toDataURL("image/jpeg", 0.7);
+  }
+
+  /* ------------------------------------------------ 启动 */
+  async function init() {
+    if (!bound) { bind(); bound = true; }
+    updateCount();
+    await boot();
+    const r = await API.poll(0);
+    renderList(r.files || []);
+    logIndex = r.log_total || 0;
+    if (r.state && r.state.running) startPolling();
+    // 空闲心跳：让界面始终跟随后端状态（例如处理结束后刷新）
+    setInterval(() => { if (!busy && API) poll().catch(() => {}); }, 1200);
+  }
+
+  function startWithMock() {
+    if (API) return;
+    MOCKED = true;
+    API = mockApi();
+    init();
+  }
+
+  // pywebview 桥接就绪后接管（若之前已经跑在 mock 上，则清掉演示数据重新初始化）
+  function adoptRealApi() {
+    if (adopted) return;
+    adopted = true;
+    API = window.pywebview.api;
+    if (timer) { clearInterval(timer); timer = null; }
+    busy = false;
+    if (MOCKED) {
+      MOCKED = false;
+      files.clear();
+      $("#filelist").innerHTML = "";
+      logIndex = 0;
+      setProgress(0, "就绪 · 添加视频后点击开始");
+    }
+    init();
+  }
+
+  document.addEventListener("pywebviewready", adoptRealApi);
+
+  // 如果脚本执行时桥接已就绪，直接接管；否则 2.5 秒后仍无桥接才进 mock 预览
+  if (window.pywebview && window.pywebview.api) {
+    adoptRealApi();
+  } else {
+    setTimeout(() => {
+      if (window.pywebview && window.pywebview.api) adoptRealApi();
+      else startWithMock();
+    }, 2500);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+output/
+outputs/
+*.preview.png
+*.dewm.mp4
+*_dewm.mp4
+
+.env
+*.log
+.DS_Store
+Thumbs.db
